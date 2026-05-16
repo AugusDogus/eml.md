@@ -174,11 +174,11 @@ export default function EmlConverter() {
 
         <Card
           className={cn(
-            "flex flex-col gap-0 py-0",
+            "relative flex flex-col gap-0 overflow-hidden py-0 [--preview-header-height:5rem]",
             !isPreviewExpanded && "flex-1 min-h-0 lg:flex-none lg:h-132",
           )}
         >
-          <CardHeader className="border-b py-4">
+          <CardHeader className="absolute inset-x-0 top-0 z-10 min-h-(--preview-header-height) border-b bg-card py-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-2">
               <div className="flex min-w-0 flex-col gap-1">
                 <CardDescription className="text-xs uppercase tracking-[0.2em]">
@@ -227,7 +227,7 @@ export default function EmlConverter() {
             )}
           >
             {error ? (
-              <div className="p-4">
+              <div className="p-4 pt-[calc(var(--preview-header-height)+1rem)]">
                 <Alert variant="destructive">
                   <AlertTitle>Conversion failed</AlertTitle>
                   <AlertDescription>{error}</AlertDescription>
@@ -236,7 +236,7 @@ export default function EmlConverter() {
             ) : converted ? (
               <div
                 className={cn(
-                  "relative",
+                  "relative pt-(--preview-header-height)",
                   !isPreviewExpanded && "flex min-h-0 flex-1 flex-col",
                 )}
               >
@@ -257,15 +257,19 @@ export default function EmlConverter() {
                 )}
               </div>
             ) : (
-              <Empty className="flex-1 border-0">
+              <Empty className="min-h-0 flex-1 border-0">
                 <EmptyHeader>
-                  <EmptyMedia variant="icon">
+                  <EmptyMedia
+                    variant="icon"
+                    className="size-12 rounded-full [&_svg:not([class*='size-'])]:size-5"
+                  >
                     <MailIcon />
                   </EmptyMedia>
-                  <EmptyTitle>Conversation preview</EmptyTitle>
+                  <EmptyTitle className="text-2xl">
+                    Conversation preview
+                  </EmptyTitle>
                   <EmptyDescription>
-                    Converted Markdown will appear here after you drop an .eml
-                    file.
+                    Markdown appears here after conversion
                   </EmptyDescription>
                 </EmptyHeader>
               </Empty>
