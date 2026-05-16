@@ -1,0 +1,31 @@
+---
+import "../styles.css";
+
+interface Props {
+  title?: string;
+  description?: string;
+}
+
+const {
+  title = "eml to md",
+  description = "local conversion of .eml email files to markdown",
+} = Astro.props;
+---
+
+<!doctype html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="/favicon.ico" type="image/x-icon" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <meta
+      name="keywords"
+      content="eml, markdown, email, conversion, local, browser"
+    />
+  </head>
+  <body>
+    <slot />
+  </body>
+</html>
