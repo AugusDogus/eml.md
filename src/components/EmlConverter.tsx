@@ -174,11 +174,11 @@ export default function EmlConverter() {
 
         <Card
           className={cn(
-            "relative flex flex-col gap-0 overflow-hidden py-0 [--preview-header-height:5rem]",
+            "flex flex-col gap-0 py-0 lg:relative lg:overflow-hidden lg:[--preview-header-height:5rem]",
             !isPreviewExpanded && "flex-1 min-h-0 lg:flex-none lg:h-132",
           )}
         >
-          <CardHeader className="absolute inset-x-0 top-0 z-10 min-h-(--preview-header-height) border-b bg-card py-4">
+          <CardHeader className="border-b bg-card py-4 lg:absolute lg:inset-x-0 lg:top-0 lg:z-10 lg:min-h-(--preview-header-height)">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-2">
               <div className="flex min-w-0 flex-col gap-1">
                 <CardDescription className="text-xs uppercase tracking-[0.2em]">
@@ -227,7 +227,7 @@ export default function EmlConverter() {
             )}
           >
             {error ? (
-              <div className="p-4 pt-[calc(var(--preview-header-height)+1rem)]">
+              <div className="p-4 lg:pt-[calc(var(--preview-header-height)+1rem)]">
                 <Alert variant="destructive">
                   <AlertTitle>Conversion failed</AlertTitle>
                   <AlertDescription>{error}</AlertDescription>
@@ -236,7 +236,7 @@ export default function EmlConverter() {
             ) : converted ? (
               <div
                 className={cn(
-                  "relative pt-(--preview-header-height)",
+                  "relative lg:pt-(--preview-header-height)",
                   !isPreviewExpanded && "flex min-h-0 flex-1 flex-col",
                 )}
               >
