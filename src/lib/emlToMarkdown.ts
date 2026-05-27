@@ -1,26 +1,52 @@
-import PostalMime, { type Address, type Email } from 'postal-mime'
+import PostalMime, {
+  type Address,
+  type Attachment,
+  type Email,
+} from 'postal-mime'
 
-export type ConvertedEmail = {
+export interface ConvertedAttachment {
+  fileName: string
+  mimeType: string
+  size: number
+  disposition: Attachment['disposition']
+  contentId?: string
+  related?: boolean
+  isInline: boolean
+  isReferencedInline: boolean
+  content: ArrayBuffer
+}
+
+export interface ConvertedEmail {
   fileName: string
   markdown: string
+  attachments: ConvertedAttachment[]
 }
 
 export async function convertEmlFileToMarkdown(
   file: File,
 ): Promise<ConvertedEmail> {
   const email = await PostalMime.parse(file)
-  const body = normalizeBody(email)
+  const referencedContentIds = getReferencedContentIds(email.html || '')
+  const attachments = normalizeAttachments(email.attachments, referencedContentIds)
+  const body = normalizeBody(email, attachments)
   const messages = splitConversation(body)
-  const markdown = formatMarkdown(email, messages)
+  const markdown = formatMarkdown(email, messages, attachments)
 
   return {
     fileName: toMarkdownFileName(file.name),
     markdown,
+    attachments,
   }
 }
 
-function normalizeBody(email: Email) {
-  const body = email.text?.trim() || htmlToText(email.html || '').trim()
+function normalizeBody(email: Email, attachments: ConvertedAttachment[]) {
+  const hasInlineReferences = attachments.some(
+    (attachment) => attachment.isReferencedInline,
+  )
+  const body =
+    hasInlineReferences && email.html
+      ? htmlToText(email.html, attachments).trim()
+      : email.text?.trim() || htmlToText(email.html || '', attachments).trim()
 
   return body
     .replace(/\r\n/g, '\n')
@@ -30,12 +56,31 @@ function normalizeBody(email: Email) {
     .trim()
 }
 
-function htmlToText(html: string) {
+function htmlToText(html: string, attachments: ConvertedAttachment[]) {
   const doc = new DOMParser().parseFromString(html, 'text/html')
+  const attachmentByContentId = new Map(
+    attachments
+      .filter((attachment) => attachment.contentId)
+      .map((attachment) => [attachment.contentId, attachment]),
+  )
 
   doc.querySelectorAll('br').forEach((node) => node.replaceWith('\n'))
   doc.querySelectorAll('p, div, blockquote, li').forEach((node) => {
     node.append('\n')
+  })
+  doc.querySelectorAll('[src], [href]').forEach((node) => {
+    const element = node as HTMLElement
+    const contentId = cidUrlToContentId(
+      element.getAttribute('src') || element.getAttribute('href') || '',
+    )
+    if (!contentId) return
+
+    const attachment = attachmentByContentId.get(contentId)
+    const label = attachment
+      ? `Inline attachment: ${attachment.fileName}`
+      : `Inline attachment: ${contentId}`
+
+    node.replaceWith(`\n[${label}]\n`)
   })
 
   return doc.body.textContent || ''
@@ -124,11 +169,17 @@ function cleanMessage(content: string) {
     .trim()
 }
 
-function formatMarkdown(email: Email, messages: ConversationMessage[]) {
+function formatMarkdown(
+  email: Email,
+  messages: ConversationMessage[],
+  attachments: ConvertedAttachment[],
+) {
   const from = formatAddress(email.from) || 'Unknown sender'
   const recipients = formatAddresses(email.to)
   const title = email.subject?.trim() || 'Email conversation'
   const lines = [`# ${escapeMarkdownHeading(title)}`, '']
+  const inlineAttachments = attachments.filter((attachment) => attachment.isInline)
+  const attachedFiles = attachments.filter((attachment) => !attachment.isInline)
 
   lines.push('## Conversation Map', '')
   lines.push(`- Latest message: ${from}`)
@@ -136,6 +187,9 @@ function formatMarkdown(email: Email, messages: ConversationMessage[]) {
   if (messages.length > 1) {
     lines.push(`- Detected quoted replies: ${messages.length - 1}`)
   }
+  if (attachedFiles.length) lines.push(`- Attached files: ${attachedFiles.length}`)
+  if (inlineAttachments.length)
+    lines.push(`- Inline assets: ${inlineAttachments.length}`)
   lines.push('')
 
   messages.forEach((message, index) => {
@@ -147,7 +201,131 @@ function formatMarkdown(email: Email, messages: ConversationMessage[]) {
     lines.push('', message.content.trim(), '')
   })
 
+  if (attachedFiles.length) {
+    lines.push('## Attached Files', '')
+    lines.push(...formatAttachmentLines(attachedFiles))
+    lines.push('')
+  }
+
+  if (inlineAttachments.length) {
+    lines.push('## Inline Assets', '')
+    lines.push(...formatAttachmentLines(inlineAttachments))
+    lines.push('')
+  }
+
   return lines.join('\n').replace(/\n{3,}/g, '\n\n').trim() + '\n'
+}
+
+function formatAttachmentLines(attachments: ConvertedAttachment[]) {
+  return attachments.map((attachment, index) => {
+    const details = [
+      attachment.mimeType,
+      formatBytes(attachment.size),
+      attachment.isReferencedInline ? 'referenced in body' : undefined,
+    ]
+      .filter(Boolean)
+      .join(' - ')
+
+    return `${index + 1}. ${escapeMarkdownInline(attachment.fileName)}${
+      details ? ` (${details})` : ''
+    }`
+  })
+}
+
+function normalizeAttachments(
+  attachments: Attachment[] = [],
+  referencedContentIds: Set<string>,
+) {
+  return attachments.map((attachment, index): ConvertedAttachment => {
+    const content = attachmentContentToArrayBuffer(attachment.content)
+    const contentId = normalizeContentId(attachment.contentId)
+    const isReferencedInline = Boolean(
+      contentId && referencedContentIds.has(contentId),
+    )
+    const isInline = Boolean(
+      attachment.disposition === 'inline' ||
+        attachment.related ||
+        isReferencedInline,
+    )
+
+    return {
+      fileName: attachment.filename || fallbackAttachmentFileName(index, attachment),
+      mimeType: attachment.mimeType || 'application/octet-stream',
+      size: content.byteLength,
+      disposition: attachment.disposition,
+      contentId,
+      related: attachment.related,
+      isInline,
+      isReferencedInline,
+      content,
+    }
+  })
+}
+
+function getReferencedContentIds(html: string) {
+  const referencedContentIds = new Set<string>()
+  if (!html) return referencedContentIds
+
+  const doc = new DOMParser().parseFromString(html, 'text/html')
+  doc.querySelectorAll('[src], [href]').forEach((node) => {
+    const element = node as HTMLElement
+    const contentId = cidUrlToContentId(
+      element.getAttribute('src') || element.getAttribute('href') || '',
+    )
+    if (contentId) referencedContentIds.add(contentId)
+  })
+
+  return referencedContentIds
+}
+
+function cidUrlToContentId(value: string) {
+  if (!value.toLowerCase().startsWith('cid:')) return undefined
+
+  try {
+    return normalizeContentId(decodeURIComponent(value.slice(4)))
+  } catch {
+    return normalizeContentId(value.slice(4))
+  }
+}
+
+function normalizeContentId(value?: string) {
+  return value?.replace(/[<>]/g, '').trim().toLowerCase()
+}
+
+function attachmentContentToArrayBuffer(content: Attachment['content']) {
+  if (content instanceof ArrayBuffer) return content
+  if (ArrayBuffer.isView(content)) {
+    const bytes = new Uint8Array(content.byteLength)
+    bytes.set(content)
+    return bytes.buffer
+  }
+
+  const binary = atob(content)
+  const bytes = new Uint8Array(binary.length)
+
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index)
+  }
+
+  return bytes.buffer
+}
+
+function fallbackAttachmentFileName(index: number, attachment: Attachment) {
+  const extension = extensionFromMimeType(attachment.mimeType)
+  return `attachment-${index + 1}${extension}`
+}
+
+function extensionFromMimeType(mimeType?: string) {
+  const extensionByMimeType: Record<string, string> = {
+    'application/pdf': '.pdf',
+    'image/gif': '.gif',
+    'image/jpeg': '.jpg',
+    'image/png': '.png',
+    'text/csv': '.csv',
+    'text/plain': '.txt',
+  }
+
+  return mimeType ? extensionByMimeType[mimeType] || '' : ''
 }
 
 function formatAddress(address?: Address) {
@@ -163,6 +341,25 @@ function formatAddresses(addresses?: Address[]) {
 
 function escapeMarkdownHeading(value: string) {
   return value.replace(/[\r\n]+/g, ' ').replace(/^#+\s*/, '').trim()
+}
+
+function escapeMarkdownInline(value: string) {
+  return value.replace(/([\\`*_{}[\]()#+\-.!|>])/g, '\\$1')
+}
+
+export function formatBytes(bytes: number) {
+  if (bytes === 0) return '0 B'
+
+  const units = ['B', 'KB', 'MB', 'GB']
+  const unitIndex = Math.min(
+    Math.floor(Math.log(bytes) / Math.log(1024)),
+    units.length - 1,
+  )
+  const value = bytes / 1024 ** unitIndex
+
+  return `${value >= 10 || unitIndex === 0 ? value.toFixed(0) : value.toFixed(1)} ${
+    units[unitIndex]
+  }`
 }
 
 function toMarkdownFileName(fileName: string) {

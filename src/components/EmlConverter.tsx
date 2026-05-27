@@ -4,10 +4,12 @@ import {
   CopyIcon,
   DownloadIcon,
   MailIcon,
+  PaperclipIcon,
   UploadIcon,
 } from "lucide-react";
 
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert";
+import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import {
   Tooltip,
@@ -33,6 +35,8 @@ import {
 import { cn } from "~/lib/utils";
 import {
   convertEmlFileToMarkdown,
+  formatBytes,
+  type ConvertedAttachment,
   type ConvertedEmail,
 } from "~/lib/emlToMarkdown";
 
@@ -44,6 +48,7 @@ export default function EmlConverter() {
   const [isDragging, setIsDragging] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [isPreviewExpanded, setIsPreviewExpanded] = useState(false);
+  const [areAttachmentsExpanded, setAreAttachmentsExpanded] = useState(false);
   const [isOverflowing, setIsOverflowing] = useState(false);
   const [justCopied, setJustCopied] = useState(false);
 
@@ -80,6 +85,7 @@ export default function EmlConverter() {
     try {
       const result = await convertEmlFileToMarkdown(file);
       setIsPreviewExpanded(false);
+      setAreAttachmentsExpanded(false);
       setConverted(result);
       setStatus(file.name);
     } catch (conversionError) {
@@ -113,6 +119,18 @@ export default function EmlConverter() {
     link.click();
     URL.revokeObjectURL(url);
     setStatus(converted.fileName);
+  }
+
+  function downloadAttachment(attachment: ConvertedAttachment) {
+    const url = URL.createObjectURL(
+      new Blob([attachment.content], { type: attachment.mimeType }),
+    );
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = attachment.fileName;
+    link.click();
+    URL.revokeObjectURL(url);
+    setStatus(attachment.fileName);
   }
 
   return (
@@ -240,6 +258,12 @@ export default function EmlConverter() {
                   !isPreviewExpanded && "flex min-h-0 flex-1 flex-col",
                 )}
               >
+                <AttachmentDownloads
+                  attachments={converted.attachments}
+                  isExpanded={areAttachmentsExpanded}
+                  onExpandedChange={setAreAttachmentsExpanded}
+                  onDownload={downloadAttachment}
+                />
                 <pre
                   ref={preRef}
                   className={cn(
@@ -305,4 +329,153 @@ export default function EmlConverter() {
       </div>
     </TooltipProvider>
   );
+}
+
+interface AttachmentDownloadsProps {
+  attachments: ConvertedAttachment[];
+  isExpanded: boolean;
+  onExpandedChange: (isExpanded: boolean) => void;
+  onDownload: (attachment: ConvertedAttachment) => void;
+}
+
+function AttachmentDownloads({
+  attachments,
+  isExpanded,
+  onExpandedChange,
+  onDownload,
+}: AttachmentDownloadsProps) {
+  if (!attachments.length) return null;
+
+  const attachedFiles = attachments.filter((attachment) => !attachment.isInline);
+  const inlineAttachments = attachments.filter((attachment) => attachment.isInline);
+
+  return (
+    <div className="shrink-0 border-b bg-muted/30 p-4">
+      <button
+        type="button"
+        aria-expanded={isExpanded}
+        className="flex w-full cursor-pointer items-center gap-2 text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+        onClick={() => onExpandedChange(!isExpanded)}
+      >
+        <span className="flex min-w-0 flex-1 items-center gap-2 text-sm font-medium">
+          <PaperclipIcon className="size-4 shrink-0" />
+          <span className="truncate">Attachments</span>
+        </span>
+        {attachedFiles.length > 0 && (
+          <Badge variant="secondary" className="shrink-0">
+            {attachedFiles.length} files
+          </Badge>
+        )}
+        {inlineAttachments.length > 0 && (
+          <Badge variant="outline" className="shrink-0">
+            {inlineAttachments.length} inline
+          </Badge>
+        )}
+        <ChevronDownIcon
+          className={cn(
+            "size-4 shrink-0 text-muted-foreground transition-transform duration-200",
+            isExpanded && "rotate-180",
+          )}
+        />
+      </button>
+      {isExpanded && (
+        <div className="mt-3 grid max-h-48 gap-4 overflow-y-auto overflow-x-hidden pr-1">
+          <AttachmentGroup
+            attachments={attachedFiles}
+            title="Attached files"
+            onDownload={onDownload}
+          />
+          <AttachmentGroup
+            attachments={inlineAttachments}
+            title="Inline assets"
+            onDownload={onDownload}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+interface AttachmentGroupProps {
+  attachments: ConvertedAttachment[];
+  title: string;
+  onDownload: (attachment: ConvertedAttachment) => void;
+}
+
+function AttachmentGroup({
+  attachments,
+  title,
+  onDownload,
+}: AttachmentGroupProps) {
+  if (!attachments.length) return null;
+
+  return (
+    <section className="grid gap-2">
+      <h3 className="text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">
+        {title}
+      </h3>
+      {attachments.map((attachment, index) => (
+        <div
+          key={`${attachment.fileName}-${index}`}
+          className="min-w-0 overflow-hidden rounded-lg border bg-card p-3 sm:flex sm:items-center sm:gap-2"
+        >
+          <div className="min-w-0 flex-1">
+            <MiddleTruncatedFileName fileName={attachment.fileName} />
+            <p className="text-xs text-muted-foreground">
+              {formatAttachmentDetails(attachment)}
+            </p>
+          </div>
+          <Button
+            className="mt-2 cursor-pointer sm:mt-0 sm:shrink-0"
+            variant="outline"
+            size="sm"
+            onClick={() => onDownload(attachment)}
+          >
+            <DownloadIcon data-icon="inline-start" />
+            Download
+          </Button>
+        </div>
+      ))}
+    </section>
+  );
+}
+
+function formatAttachmentDetails(attachment: ConvertedAttachment) {
+  return [
+    attachment.mimeType,
+    formatBytes(attachment.size),
+    attachment.isReferencedInline ? "referenced in body" : undefined,
+  ]
+    .filter(Boolean)
+    .join(" - ");
+}
+
+interface MiddleTruncatedFileNameProps {
+  fileName: string;
+}
+
+function MiddleTruncatedFileName({ fileName }: MiddleTruncatedFileNameProps) {
+  const { start, end } = splitFileNameForMiddleTruncation(fileName);
+
+  return (
+    <p
+      aria-label={fileName}
+      className="flex max-w-full text-sm font-medium"
+      title={fileName}
+    >
+      <span className="min-w-0 truncate">{start}</span>
+      <span className="shrink-0">{end}</span>
+    </p>
+  );
+}
+
+function splitFileNameForMiddleTruncation(fileName: string) {
+  if (fileName.length <= 24) return { start: fileName, end: "" };
+
+  const endLength = Math.min(18, Math.ceil(fileName.length / 2));
+
+  return {
+    start: fileName.slice(0, -endLength),
+    end: fileName.slice(-endLength),
+  };
 }
