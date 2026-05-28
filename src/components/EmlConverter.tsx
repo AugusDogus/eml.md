@@ -3,9 +3,11 @@ import {
   ChevronDownIcon,
   CopyIcon,
   DownloadIcon,
+  EyeIcon,
   MailIcon,
   PaperclipIcon,
   UploadIcon,
+  XIcon,
 } from "lucide-react";
 
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert";
@@ -37,6 +39,7 @@ import { cn } from "~/lib/utils";
 import {
   convertEmlFileToMarkdown,
   formatBytes,
+  isImageAttachment,
   type ConvertedAttachment,
   type ConvertedEmail,
 } from "~/lib/emlToMarkdown";
@@ -442,6 +445,9 @@ function AttachmentDownloads({
   onExpandedChange,
   onDownload,
 }: AttachmentDownloadsProps) {
+  const [previewAttachment, setPreviewAttachment] =
+    useState<ConvertedAttachment | null>(null);
+
   if (!attachments.length) return null;
 
   const attachedFiles = attachments.filter((attachment) => !attachment.isInline);
@@ -482,13 +488,21 @@ function AttachmentDownloads({
             attachments={attachedFiles}
             title="Attached files"
             onDownload={onDownload}
+            onPreview={setPreviewAttachment}
           />
           <AttachmentGroup
             attachments={inlineAttachments}
             title="Inline assets"
             onDownload={onDownload}
+            onPreview={setPreviewAttachment}
           />
         </div>
+      )}
+      {previewAttachment && (
+        <ImagePreviewOverlay
+          attachment={previewAttachment}
+          onClose={() => setPreviewAttachment(null)}
+        />
       )}
     </div>
   );
@@ -498,12 +512,14 @@ interface AttachmentGroupProps {
   attachments: ConvertedAttachment[];
   title: string;
   onDownload: (attachment: ConvertedAttachment) => void;
+  onPreview: (attachment: ConvertedAttachment) => void;
 }
 
 function AttachmentGroup({
   attachments,
   title,
   onDownload,
+  onPreview,
 }: AttachmentGroupProps) {
   if (!attachments.length) return null;
 
@@ -515,27 +531,150 @@ function AttachmentGroup({
       {attachments.map((attachment, index) => (
         <div
           key={`${attachment.fileName}-${index}`}
-          className="min-w-0 overflow-hidden rounded-lg border bg-card p-3 sm:flex sm:items-center sm:gap-2"
+          className="flex min-w-0 items-center gap-3 overflow-hidden rounded-lg border bg-card p-3"
         >
+          {isImageAttachment(attachment) && (
+            <AttachmentImageThumbnail
+              attachment={attachment}
+              onClick={() => onPreview(attachment)}
+            />
+          )}
           <div className="min-w-0 flex-1">
             <MiddleTruncatedFileName fileName={attachment.fileName} />
             <p className="text-xs text-muted-foreground">
               {formatAttachmentDetails(attachment)}
             </p>
           </div>
-          <Button
-            className="mt-2 cursor-pointer sm:mt-0 sm:shrink-0"
-            variant="outline"
-            size="sm"
-            onClick={() => onDownload(attachment)}
-          >
-            <DownloadIcon data-icon="inline-start" />
-            Download
-          </Button>
+          <div className="flex shrink-0 flex-wrap justify-end gap-2">
+            {isImageAttachment(attachment) && (
+              <Button
+                className="cursor-pointer"
+                variant="outline"
+                size="sm"
+                onClick={() => onPreview(attachment)}
+              >
+                <EyeIcon data-icon="inline-start" />
+                View
+              </Button>
+            )}
+            <Button
+              className="cursor-pointer"
+              variant="outline"
+              size="sm"
+              onClick={() => onDownload(attachment)}
+            >
+              <DownloadIcon data-icon="inline-start" />
+              Download
+            </Button>
+          </div>
         </div>
       ))}
     </section>
   );
+}
+
+interface AttachmentImageThumbnailProps {
+  attachment: ConvertedAttachment;
+  onClick: () => void;
+}
+
+function AttachmentImageThumbnail({
+  attachment,
+  onClick,
+}: AttachmentImageThumbnailProps) {
+  const url = useAttachmentObjectUrl(attachment);
+
+  if (!url) return null;
+
+  return (
+    <button
+      type="button"
+      className="shrink-0 cursor-pointer overflow-hidden rounded-md border bg-muted/40 outline-none transition-colors hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50"
+      onClick={onClick}
+      aria-label={`View ${attachment.fileName}`}
+    >
+      <img
+        src={url}
+        alt=""
+        className="block size-14 object-contain"
+      />
+    </button>
+  );
+}
+
+interface ImagePreviewOverlayProps {
+  attachment: ConvertedAttachment;
+  onClose: () => void;
+}
+
+function ImagePreviewOverlay({
+  attachment,
+  onClose,
+}: ImagePreviewOverlayProps) {
+  const url = useAttachmentObjectUrl(attachment);
+
+  useEffect(() => {
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") onClose();
+    }
+
+    document.addEventListener("keydown", closeOnEscape);
+    return () => document.removeEventListener("keydown", closeOnEscape);
+  }, [onClose]);
+
+  if (!url) return null;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-label={`Preview ${attachment.fileName}`}
+      onClick={onClose}
+    >
+      <button
+        type="button"
+        className="absolute top-4 right-4 cursor-pointer rounded-md p-2 text-white/80 transition-colors outline-none hover:bg-white/10 hover:text-white focus-visible:ring-3 focus-visible:ring-white/50"
+        aria-label="Close preview"
+        onClick={onClose}
+      >
+        <XIcon className="size-5" />
+      </button>
+      <div
+        className="flex max-h-full max-w-full flex-col items-center gap-3"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <img
+          src={url}
+          alt={attachment.fileName}
+          className="max-h-[85vh] max-w-full object-contain"
+        />
+        <p className="max-w-full truncate text-sm text-white/80">
+          {attachment.fileName}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function useAttachmentObjectUrl(attachment: ConvertedAttachment | null) {
+  const [url, setUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!attachment) {
+      setUrl(null);
+      return;
+    }
+
+    const objectUrl = URL.createObjectURL(
+      new Blob([attachment.content], { type: attachment.mimeType }),
+    );
+    setUrl(objectUrl);
+
+    return () => URL.revokeObjectURL(objectUrl);
+  }, [attachment]);
+
+  return url;
 }
 
 function formatAttachmentDetails(attachment: ConvertedAttachment) {
