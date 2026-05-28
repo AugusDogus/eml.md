@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   ChevronDownIcon,
   CopyIcon,
@@ -32,6 +32,7 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "~/components/ui/empty";
+import { createEmailBundle } from "~/lib/emailBundle";
 import { cn } from "~/lib/utils";
 import {
   convertEmlFileToMarkdown,
@@ -51,6 +52,7 @@ export default function EmlConverter() {
   const [areAttachmentsExpanded, setAreAttachmentsExpanded] = useState(false);
   const [isOverflowing, setIsOverflowing] = useState(false);
   const [justCopied, setJustCopied] = useState(false);
+  const [isBundleWorking, setIsBundleWorking] = useState(false);
 
   useLayoutEffect(() => {
     const el = preRef.current;
@@ -110,27 +112,32 @@ export default function EmlConverter() {
   function downloadMarkdown() {
     if (!converted) return;
 
-    const url = URL.createObjectURL(
+    downloadBlob(
       new Blob([converted.markdown], { type: "text/markdown;charset=utf-8" }),
+      converted.fileName,
     );
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = converted.fileName;
-    link.click();
-    URL.revokeObjectURL(url);
     setStatus(converted.fileName);
   }
 
   function downloadAttachment(attachment: ConvertedAttachment) {
-    const url = URL.createObjectURL(
+    downloadBlob(
       new Blob([attachment.content], { type: attachment.mimeType }),
+      attachment.fileName,
     );
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = attachment.fileName;
-    link.click();
-    URL.revokeObjectURL(url);
     setStatus(attachment.fileName);
+  }
+
+  async function downloadBundle() {
+    if (!converted || isBundleWorking) return;
+
+    setIsBundleWorking(true);
+    try {
+      const bundle = await createEmailBundle(converted);
+      downloadBlob(bundle.blob, bundle.fileName);
+      setStatus(bundle.fileName);
+    } finally {
+      setIsBundleWorking(false);
+    }
   }
 
   return (
@@ -206,7 +213,7 @@ export default function EmlConverter() {
                   {converted?.fileName || "No file converted yet"}
                 </CardTitle>
               </div>
-              <div className="flex shrink-0 gap-2 sm:ml-auto">
+              <div className="flex shrink-0 flex-wrap gap-2 sm:ml-auto sm:justify-end">
                 <Tooltip open={justCopied}>
                   <TooltipTrigger
                     render={
@@ -224,16 +231,12 @@ export default function EmlConverter() {
                   </TooltipTrigger>
                   <TooltipContent>Copied!</TooltipContent>
                 </Tooltip>
-                <Button
-                  className="cursor-pointer"
-                  variant="outline"
-                  size="sm"
+                <DownloadMenu
                   disabled={!converted}
-                  onClick={downloadMarkdown}
-                >
-                  <DownloadIcon data-icon="inline-start" />
-                  Download
-                </Button>
+                  isBundleWorking={isBundleWorking}
+                  onDownloadMarkdown={downloadMarkdown}
+                  onDownloadBundle={downloadBundle}
+                />
               </div>
             </div>
           </CardHeader>
@@ -336,6 +339,101 @@ interface AttachmentDownloadsProps {
   isExpanded: boolean;
   onExpandedChange: (isExpanded: boolean) => void;
   onDownload: (attachment: ConvertedAttachment) => void;
+}
+
+interface DownloadMenuProps {
+  disabled: boolean;
+  isBundleWorking: boolean;
+  onDownloadMarkdown: () => void;
+  onDownloadBundle: () => Promise<void>;
+}
+
+function DownloadMenu({
+  disabled,
+  isBundleWorking,
+  onDownloadMarkdown,
+  onDownloadBundle,
+}: DownloadMenuProps) {
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [isOpen, setIsOpen] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    function closeOnOutsideClick(event: PointerEvent) {
+      if (!menuRef.current?.contains(event.target as Node)) setIsOpen(false);
+    }
+
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") setIsOpen(false);
+    }
+
+    document.addEventListener("pointerdown", closeOnOutsideClick);
+    document.addEventListener("keydown", closeOnEscape);
+
+    return () => {
+      document.removeEventListener("pointerdown", closeOnOutsideClick);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [isOpen]);
+
+  function downloadMarkdown() {
+    onDownloadMarkdown();
+    setIsOpen(false);
+  }
+
+  async function downloadBundle() {
+    await onDownloadBundle();
+    setIsOpen(false);
+  }
+
+  return (
+    <div ref={menuRef} className="relative">
+      <Button
+        className="cursor-pointer"
+        variant="outline"
+        size="sm"
+        disabled={disabled}
+        aria-expanded={isOpen}
+        aria-haspopup="menu"
+        onClick={() => setIsOpen((open) => !open)}
+      >
+        <DownloadIcon data-icon="inline-start" />
+        Download
+        <ChevronDownIcon data-icon="inline-end" />
+      </Button>
+      {isOpen && (
+        <div
+          role="menu"
+          className="absolute right-0 top-[calc(100%+0.5rem)] z-20 grid w-64 gap-1 rounded-lg border bg-popover p-1 text-popover-foreground shadow-md"
+        >
+          <button
+            type="button"
+            role="menuitem"
+            className="cursor-pointer rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-muted focus-visible:bg-muted focus-visible:outline-none"
+            onClick={downloadMarkdown}
+          >
+            <span className="block font-medium">Markdown</span>
+            <span className="block text-xs text-muted-foreground">
+              Download the converted .md file
+            </span>
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            className="cursor-pointer rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-muted focus-visible:bg-muted focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50"
+            disabled={isBundleWorking}
+            onClick={() => void downloadBundle()}
+          >
+            <span className="block font-medium">Bundle with attachments</span>
+            <span className="block text-xs text-muted-foreground">
+              Download a zip with markdown and extracted files
+            </span>
+          </button>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function AttachmentDownloads({
@@ -478,4 +576,13 @@ function splitFileNameForMiddleTruncation(fileName: string) {
     start: fileName.slice(0, -endLength),
     end: fileName.slice(-endLength),
   };
+}
+
+function downloadBlob(blob: Blob, fileName: string) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = fileName;
+  link.click();
+  URL.revokeObjectURL(url);
 }

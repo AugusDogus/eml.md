@@ -19,6 +19,7 @@
     "astro": "6.3.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "jszip": "^3.10.1",
     "lucide-react": "^1.16.0",
     "postal-mime": "^2.7.4",
     "react": "^19.2.0",
