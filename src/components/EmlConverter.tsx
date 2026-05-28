@@ -445,8 +445,20 @@ function AttachmentDownloads({
   onExpandedChange,
   onDownload,
 }: AttachmentDownloadsProps) {
-  const [previewAttachment, setPreviewAttachment] =
-    useState<ConvertedAttachment | null>(null);
+  const [previewState, setPreviewState] = useState<{
+    gallery: ConvertedAttachment[];
+    index: number;
+  } | null>(null);
+
+  function openPreview(
+    attachment: ConvertedAttachment,
+    gallery: ConvertedAttachment[],
+  ) {
+    const index = gallery.indexOf(attachment);
+    if (index === -1) return;
+
+    setPreviewState({ gallery, index });
+  }
 
   if (!attachments.length) return null;
 
@@ -485,21 +497,27 @@ function AttachmentDownloads({
               attachments={attachedFiles}
               title="Attached files"
               onDownload={onDownload}
-              onPreview={setPreviewAttachment}
+              onPreview={openPreview}
             />
             <AttachmentGroup
               attachments={inlineAttachments}
               title="Inline assets"
               onDownload={onDownload}
-              onPreview={setPreviewAttachment}
+              onPreview={openPreview}
             />
           </div>
         </div>
       )}
-      {previewAttachment && (
+      {previewState && (
         <ImagePreviewOverlay
-          attachment={previewAttachment}
-          onClose={() => setPreviewAttachment(null)}
+          gallery={previewState.gallery}
+          index={previewState.index}
+          onIndexChange={(index) =>
+            setPreviewState((current) =>
+              current ? { ...current, index } : current,
+            )
+          }
+          onClose={() => setPreviewState(null)}
         />
       )}
     </div>
@@ -510,7 +528,10 @@ interface AttachmentGroupProps {
   attachments: ConvertedAttachment[];
   title: string;
   onDownload: (attachment: ConvertedAttachment) => void;
-  onPreview: (attachment: ConvertedAttachment) => void;
+  onPreview: (
+    attachment: ConvertedAttachment,
+    gallery: ConvertedAttachment[],
+  ) => void;
 }
 
 function AttachmentGroup({
@@ -520,6 +541,8 @@ function AttachmentGroup({
   onPreview,
 }: AttachmentGroupProps) {
   if (!attachments.length) return null;
+
+  const previewableAttachments = attachments.filter(isImageAttachment);
 
   return (
     <section className="grid gap-2">
@@ -534,7 +557,7 @@ function AttachmentGroup({
           {isImageAttachment(attachment) && (
             <AttachmentImageThumbnail
               attachment={attachment}
-              onClick={() => onPreview(attachment)}
+              onClick={() => onPreview(attachment, previewableAttachments)}
             />
           )}
           <div className="min-w-0 flex-1">
@@ -549,7 +572,7 @@ function AttachmentGroup({
                 className="cursor-pointer"
                 variant="outline"
                 size="sm"
-                onClick={() => onPreview(attachment)}
+                onClick={() => onPreview(attachment, previewableAttachments)}
               >
                 <EyeIcon data-icon="inline-start" />
                 View
@@ -601,24 +624,44 @@ function AttachmentImageThumbnail({
 }
 
 interface ImagePreviewOverlayProps {
-  attachment: ConvertedAttachment;
+  gallery: ConvertedAttachment[];
+  index: number;
+  onIndexChange: (index: number) => void;
   onClose: () => void;
 }
 
 function ImagePreviewOverlay({
-  attachment,
+  gallery,
+  index,
+  onIndexChange,
   onClose,
 }: ImagePreviewOverlayProps) {
+  const attachment = gallery[index];
   const url = useAttachmentObjectUrl(attachment);
+  const hasPrevious = index > 0;
+  const hasNext = index < gallery.length - 1;
 
   useEffect(() => {
-    function closeOnEscape(event: KeyboardEvent) {
-      if (event.key === "Escape") onClose();
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        onClose();
+        return;
+      }
+
+      if (event.key === "ArrowLeft" && hasPrevious) {
+        event.preventDefault();
+        onIndexChange(index - 1);
+      }
+
+      if (event.key === "ArrowRight" && hasNext) {
+        event.preventDefault();
+        onIndexChange(index + 1);
+      }
     }
 
-    document.addEventListener("keydown", closeOnEscape);
-    return () => document.removeEventListener("keydown", closeOnEscape);
-  }, [onClose]);
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [hasNext, hasPrevious, index, onClose, onIndexChange]);
 
   if (!url) return null;
 
@@ -649,6 +692,9 @@ function ImagePreviewOverlay({
         />
         <p className="max-w-full truncate text-sm text-white/80">
           {attachment.fileName}
+          {gallery.length > 1 && (
+            <span className="text-white/50">{` · ${index + 1} / ${gallery.length}`}</span>
+          )}
         </p>
       </div>
     </div>
