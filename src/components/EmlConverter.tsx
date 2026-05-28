@@ -454,48 +454,46 @@ function AttachmentDownloads({
   const inlineAttachments = attachments.filter((attachment) => attachment.isInline);
 
   return (
-    <div className="shrink-0 border-b bg-muted/30 p-4">
-      <button
-        type="button"
-        aria-expanded={isExpanded}
-        className="flex w-full cursor-pointer items-center gap-2 text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-        onClick={() => onExpandedChange(!isExpanded)}
-      >
-        <span className="flex min-w-0 flex-1 items-center gap-2 text-sm font-medium">
-          <PaperclipIcon className="size-4 shrink-0" />
-          <span className="truncate">Attachments</span>
-        </span>
-        {attachedFiles.length > 0 && (
+    <div className="shrink-0 border-b bg-muted/30">
+      <div className={cn("px-4 pt-4", isExpanded ? "pb-3" : "pb-4")}>
+        <button
+          type="button"
+          aria-expanded={isExpanded}
+          className="flex w-full cursor-pointer items-center gap-2 text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+          onClick={() => onExpandedChange(!isExpanded)}
+        >
+          <span className="flex min-w-0 flex-1 items-center gap-2 text-sm font-medium">
+            <PaperclipIcon className="size-4 shrink-0" />
+            <span className="truncate">Attachments</span>
+          </span>
           <Badge variant="secondary" className="shrink-0">
-            {attachedFiles.length} files
+            {attachments.length}{" "}
+            {attachments.length === 1 ? "file" : "files"}
           </Badge>
-        )}
-        {inlineAttachments.length > 0 && (
-          <Badge variant="outline" className="shrink-0">
-            {inlineAttachments.length} inline
-          </Badge>
-        )}
-        <ChevronDownIcon
-          className={cn(
-            "size-4 shrink-0 text-muted-foreground transition-transform duration-200",
-            isExpanded && "rotate-180",
-          )}
-        />
-      </button>
+          <ChevronDownIcon
+            className={cn(
+              "size-4 shrink-0 text-muted-foreground transition-transform duration-200",
+              isExpanded && "rotate-180",
+            )}
+          />
+        </button>
+      </div>
       {isExpanded && (
-        <div className="mt-3 grid max-h-48 gap-4 overflow-y-auto overflow-x-hidden pr-1">
-          <AttachmentGroup
-            attachments={attachedFiles}
-            title="Attached files"
-            onDownload={onDownload}
-            onPreview={setPreviewAttachment}
-          />
-          <AttachmentGroup
-            attachments={inlineAttachments}
-            title="Inline assets"
-            onDownload={onDownload}
-            onPreview={setPreviewAttachment}
-          />
+        <div className="scrollbar-thin-themed max-h-48 overflow-y-auto overflow-x-hidden">
+          <div className="grid gap-3 px-4 pb-4">
+            <AttachmentGroup
+              attachments={attachedFiles}
+              title="Attached files"
+              onDownload={onDownload}
+              onPreview={setPreviewAttachment}
+            />
+            <AttachmentGroup
+              attachments={inlineAttachments}
+              title="Inline assets"
+              onDownload={onDownload}
+              onPreview={setPreviewAttachment}
+            />
+          </div>
         </div>
       )}
       {previewAttachment && (
