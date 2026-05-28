@@ -22,6 +22,10 @@ export interface ConvertedEmail {
   attachments: ConvertedAttachment[]
 }
 
+export function isImageAttachment(attachment: ConvertedAttachment) {
+  return attachment.mimeType.startsWith('image/')
+}
+
 export async function convertEmlFileToMarkdown(
   file: File,
 ): Promise<ConvertedEmail> {
