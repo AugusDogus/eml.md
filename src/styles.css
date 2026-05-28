@@ -142,3 +142,27 @@ body {
     @apply font-sans;
   }
 }
+
+@utility scrollbar-thin-themed {
+  scrollbar-gutter: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-muted-foreground) transparent;
+
+  &::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background-color: var(--color-muted-foreground);
+    border-radius: 9999px;
+  }
+
+  &::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+}

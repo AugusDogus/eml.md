@@ -270,7 +270,7 @@ export default function EmlConverter() {
                 <pre
                   ref={preRef}
                   className={cn(
-                    "whitespace-pre-wrap p-4 font-mono text-sm leading-6 text-foreground",
+                    "scrollbar-thin-themed whitespace-pre-wrap p-4 font-mono text-sm leading-6 text-foreground",
                     !isPreviewExpanded && "min-h-0 flex-1 overflow-auto",
                   )}
                 >
