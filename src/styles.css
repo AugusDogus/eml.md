@@ -3,6 +3,7 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/geist";
+@import "@pierre/truncate/style.css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -140,6 +141,14 @@ body {
   }
   html {
     @apply font-sans;
+  }
+  /*
+   * The truncate marker paints an opaque swatch to obscure clipped text, so it
+   * must match the surface behind it. These markers always sit on card
+   * surfaces, and var(--card) tracks the active light/dark theme class.
+   */
+  [data-truncate-container] {
+    --truncate-marker-background-color: var(--card);
   }
 }
 

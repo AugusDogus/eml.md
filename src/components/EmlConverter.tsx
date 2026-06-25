@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { MiddleTruncate } from "@pierre/truncate/react";
 import {
   ChevronDownIcon,
   CopyIcon,
@@ -212,9 +213,7 @@ export default function EmlConverter() {
                 <CardDescription className="text-xs uppercase tracking-[0.2em]">
                   Markdown output
                 </CardDescription>
-                <CardTitle className="truncate">
-                  {converted?.fileName || "No file converted yet"}
-                </CardTitle>
+                <PreviewTitle fileName={converted?.fileName ?? null} />
               </div>
               <div className="flex shrink-0 flex-wrap gap-2 sm:ml-auto sm:justify-end">
                 <Tooltip open={justCopied}>
@@ -731,34 +730,42 @@ function formatAttachmentDetails(attachment: ConvertedAttachment) {
     .join(" - ");
 }
 
+interface PreviewTitleProps {
+  fileName: string | null;
+}
+
 interface MiddleTruncatedFileNameProps {
   fileName: string;
 }
 
-function MiddleTruncatedFileName({ fileName }: MiddleTruncatedFileNameProps) {
-  const { start, end } = splitFileNameForMiddleTruncation(fileName);
+function PreviewTitle({ fileName }: PreviewTitleProps) {
+  if (!fileName) {
+    return (
+      <CardTitle>
+        <MiddleTruncate>No file converted yet</MiddleTruncate>
+      </CardTitle>
+    );
+  }
 
   return (
-    <p
-      aria-label={fileName}
-      className="flex max-w-full text-sm font-medium"
-      title={fileName}
-    >
-      <span className="min-w-0 truncate">{start}</span>
-      <span className="shrink-0">{end}</span>
-    </p>
+    <Tooltip>
+      <TooltipTrigger render={<CardTitle />}>
+        <MiddleTruncate>{fileName}</MiddleTruncate>
+      </TooltipTrigger>
+      <TooltipContent className="break-words">{fileName}</TooltipContent>
+    </Tooltip>
   );
 }
 
-function splitFileNameForMiddleTruncation(fileName: string) {
-  if (fileName.length <= 24) return { start: fileName, end: "" };
-
-  const endLength = Math.min(18, Math.ceil(fileName.length / 2));
-
-  return {
-    start: fileName.slice(0, -endLength),
-    end: fileName.slice(-endLength),
-  };
+function MiddleTruncatedFileName({ fileName }: MiddleTruncatedFileNameProps) {
+  return (
+    <Tooltip>
+      <TooltipTrigger render={<div className="text-sm font-medium" />}>
+        <MiddleTruncate>{fileName}</MiddleTruncate>
+      </TooltipTrigger>
+      <TooltipContent className="break-words">{fileName}</TooltipContent>
+    </Tooltip>
+  );
 }
 
 function downloadBlob(blob: Blob, fileName: string) {

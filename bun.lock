@@ -8,6 +8,7 @@
         "@astrojs/react": "5.0.5",
         "@base-ui/react": "^1.4.1",
         "@fontsource-variable/geist": "^5.2.8",
+        "@pierre/truncate": "^0.0.2",
         "@tailwindcss/vite": "^4.3.0",
         "astro": "6.3.3",
         "class-variance-authority": "^0.7.1",
@@ -300,6 +301,8 @@
     "@open-draft/until": ["@open-draft/until@2.1.0", "", {}, "sha512-U69T3ItWHvLwGg5eJ0n3I62nWuE6ilHlmz7zM0npLBRvPRd7e6NYmg54vvRtP5mZG7kZqZCFVdsTWo7BPtBujg=="],
 
     "@oslojs/encoding": ["@oslojs/encoding@1.1.0", "", {}, "sha512-70wQhgYmndg4GCPxPPxPGevRKqTIJ2Nh4OkiMWmDAVYsTQ+Ta7Sq+rPevXyXGdzr30/qZBnyOalCszoMxlyldQ=="],
+
+    "@pierre/truncate": ["@pierre/truncate@0.0.2", "", { "peerDependencies": { "react": "^19.0.0", "react-dom": "^19.0.0" } }, "sha512-ULMuDfVX4TOZXOaxQQxJNoXEtGPD59tiOgQRhB8QOmIZ7yBEY7M2Q/LptJgodWufdJTdmOWpQ5X3j6e3umYbXQ=="],
 
     "@rolldown/pluginutils": ["@rolldown/pluginutils@1.0.0-rc.3", "", {}, "sha512-eybk3TjzzzV97Dlj5c+XrBFW57eTNhzod66y9HrBlzJ6NsCrWCp/2kaPS3K9wJmurBC0Tdw4yPjXKZqlznim3Q=="],
 
