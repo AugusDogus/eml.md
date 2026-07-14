@@ -233,8 +233,9 @@ export default function EmlConverter() {
                   </TooltipTrigger>
                   <TooltipContent>Copied!</TooltipContent>
                 </Tooltip>
-                <DownloadMenu
+                <DownloadControl
                   disabled={!converted}
+                  hasAttachments={Boolean(converted?.attachments.length)}
                   isBundleWorking={isBundleWorking}
                   onDownloadMarkdown={downloadMarkdown}
                   onDownloadBundle={downloadBundle}
@@ -341,6 +342,46 @@ interface AttachmentDownloadsProps {
   isExpanded: boolean;
   onExpandedChange: (isExpanded: boolean) => void;
   onDownload: (attachment: ConvertedAttachment) => void;
+}
+
+interface DownloadControlProps {
+  disabled: boolean;
+  hasAttachments: boolean;
+  isBundleWorking: boolean;
+  onDownloadMarkdown: () => void;
+  onDownloadBundle: () => Promise<void>;
+}
+
+function DownloadControl({
+  disabled,
+  hasAttachments,
+  isBundleWorking,
+  onDownloadMarkdown,
+  onDownloadBundle,
+}: DownloadControlProps) {
+  if (!hasAttachments) {
+    return (
+      <Button
+        className="cursor-pointer"
+        variant="outline"
+        size="sm"
+        disabled={disabled}
+        onClick={onDownloadMarkdown}
+      >
+        <DownloadIcon data-icon="inline-start" />
+        Download
+      </Button>
+    );
+  }
+
+  return (
+    <DownloadMenu
+      disabled={disabled}
+      isBundleWorking={isBundleWorking}
+      onDownloadMarkdown={onDownloadMarkdown}
+      onDownloadBundle={onDownloadBundle}
+    />
+  );
 }
 
 interface DownloadMenuProps {
